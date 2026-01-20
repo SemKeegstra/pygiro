@@ -2,7 +2,8 @@
 import pandas as pd
 
 # Constants:
-from ..utils.constants import *
+from ..utils.mappings import LINE_TYPES
+from ..utils.constants import STATEMENT_COLS, NUMERIC_COLS
 
 def _classify_line(line: pd.Series) -> str:
     """
@@ -10,7 +11,7 @@ def _classify_line(line: pd.Series) -> str:
 
     Parameters
     ----------
-    line : str
+    line : pd.Series
         Line from the account statement.
 
     Returns
@@ -28,7 +29,7 @@ def _classify_line(line: pd.Series) -> str:
     return "other"
 
 
-def _import_account_statement(path: str) -> pd.DataFrame:
+def import_account_statement(path: str) -> pd.DataFrame:
     """
     Retrieves and formats a DEGIRO account statement.
 
