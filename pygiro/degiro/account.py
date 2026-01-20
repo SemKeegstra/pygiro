@@ -2,16 +2,40 @@
 import pandas as pd
 
 # Constants:
+from ..utils.mappings import LINE_TYPES
 from ..utils.constants import STATEMENT_COLS, NUMERIC_COLS
 
+def _classify_line(line: pd.Series) -> str:
+    """
+    Classifies a single account statement line based on its description.
 
-def _import_account_statement(path: str) -> pd.DataFrame:
+    Parameters
+    ----------
+    line : pd.Series
+        Line from the account statement.
+
+    Returns
+    -------
+    str
+        Line type identifier (e.g. buy, sell, deposit, cost).
+    """
+    # Initialize:
+    description = str(line.description).lower()
+
+    for line_type, keywords in LINE_TYPES.items():
+        if any(keyword in description for keyword in keywords):
+            return line_type
+
+    return "other"
+
+
+def import_account_statement(path: str) -> pd.DataFrame:
     """
     Retrieves and formats a DEGIRO account statement.
 
     Notes
     -----
-    1. Repairs split rows, parses numeric fields and formats timestamps.
+    1. Repairs split rows, parses numeric fields, formats timestamps, and classifies line types.
 
     Parameters
     ----------
@@ -27,8 +51,8 @@ def _import_account_statement(path: str) -> pd.DataFrame:
     statement = pd.read_csv(path, sep=",", engine="c").set_axis(STATEMENT_COLS, axis=1)
 
     # Handle extended rows:
-    for idx, row in statement[statement.date.isna()].iterrows():
-        statement.iloc[idx-1] += row.fillna("")
+    for idx, line in statement[statement.date.isna()].iterrows():
+        statement.iloc[idx-1] += line.fillna("")
     statement.dropna(subset=["date"], inplace=True)
 
     # Date formatting:
@@ -37,5 +61,8 @@ def _import_account_statement(path: str) -> pd.DataFrame:
 
     # Number parsing:
     statement[NUMERIC_COLS] = statement[NUMERIC_COLS].replace({",":"."}, regex=True).astype(float)
+
+    # Type classification:
+    statement["type"] = pd.Categorical(statement.apply(_classify_line, axis=1), categories=LINE_TYPES.keys())
 
     return statement
