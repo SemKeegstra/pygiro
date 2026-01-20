@@ -21,25 +21,9 @@ def _classify_line(line: pd.Series) -> str:
     # Initialize:
     description = str(line.description).lower()
 
-    # Classification:
-    if any(txt in description for txt in DEPOSITS):
-        return "deposit"
-    elif any(txt in description for txt in WITHDRAWALS):
-        return "withdrawal"
-    elif any(txt in description for txt in FX):
-        return "fx"
-    elif any(txt in description for txt in COSTS):
-        return "cost"
-    elif any(txt in description for txt in DIVIDENDS):
-        return "dividend"
-    elif any(txt in description for txt in INTEREST):
-        return "interest"
-    elif any(txt in description for txt in REBATE):
-        return "rebate"
-    elif any(txt in description for txt in SELL):
-        return "sell"
-    elif any(txt in description for txt in BUY):
-        return "buy"
+    for line_type, keywords in LINE_TYPES.items():
+        if any(keyword in description for keyword in keywords):
+            return line_type
 
     return "other"
 
@@ -78,6 +62,6 @@ def _import_account_statement(path: str) -> pd.DataFrame:
     statement[NUMERIC_COLS] = statement[NUMERIC_COLS].replace({",":"."}, regex=True).astype(float)
 
     # Type classification:
-    statement["type"] = pd.Categorical(statement.apply(_classify_line, axis=1), categories=LINE_TYPES)
+    statement["type"] = pd.Categorical(statement.apply(_classify_line, axis=1), categories=LINE_TYPES.keys())
 
     return statement
