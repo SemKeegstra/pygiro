@@ -1,3 +1,6 @@
+# Standard:
+from collections import defaultdict
+
 # External:
 import pandas as pd
 
@@ -35,7 +38,8 @@ def import_account_statement(path: str) -> pd.DataFrame:
 
     Notes
     -----
-    1. Repairs split rows, parses numeric fields, formats timestamps, and classifies line types.
+    1. Repairs split rows, parses numeric fields, formats timestamps, classifies line types
+       and extracts shares & prices from the description.
 
     Parameters
     ----------
@@ -56,7 +60,8 @@ def import_account_statement(path: str) -> pd.DataFrame:
     statement.dropna(subset=["date"], inplace=True)
 
     # Date formatting:
-    statement.index = pd.to_datetime(statement.pop("date") + " " + statement.pop("time"), format="%d-%m-%Y %H:%M")
+    statement.index = pd.to_datetime(statement.date + " " + statement.pop("time"), format="%d-%m-%Y %H:%M")
+    statement.date = pd.to_datetime(statement.date, format="%d-%m-%Y")
     statement.sort_index(inplace=True)
 
     # Number parsing:
@@ -65,4 +70,53 @@ def import_account_statement(path: str) -> pd.DataFrame:
     # Type classification:
     statement["type"] = pd.Categorical(statement.apply(_classify_line, axis=1), categories=LINE_TYPES.keys())
 
-    return statement
+    # Share extraction:
+    statement['shares'] = statement.description.str.extract(r"(?:Koop|Verkoop)\s+(\d+)", expand=False).astype(float)
+    statement.loc[statement["type"] == "sell", "shares"] *= -1
+
+    # Price extraction:
+    statement['price'] = statement.description.str.extract(r"@\s*([\d.,]+)", expand=False).str.replace(",", ".").astype(float)
+
+    return statement[statement.type != 'other']
+
+def get_portfolio(statement: pd.DataFrame) -> pd.DataFrame:
+    """
+    Builds a daily end-of-day portfolio overview from a DEGIRO account statement.
+
+    Notes
+    -----
+    1. The portfolio is defined as a multi-index DataFrame (date, asset).
+
+    Parameters
+    ----------
+    statement : pd.DataFrame
+        DEGIRO account statement.
+
+    Returns
+    -------
+    pd.DataFrame
+        Daily portfolio.
+    """
+    # Initialize:
+    portfolio = dict()
+    holdings = defaultdict(float)
+
+    # Construct portfolio:
+    for date, frame in statement.groupby("date"):
+        for _ , line in frame.iterrows():
+            # Adjust balance
+            holdings[line.currency] += line.amount
+            # Adjust shares (if needed):
+            if line.type in {"buy", "sell"}:
+                holdings[line.ISIN] += line.shares
+        portfolio[date] = holdings.copy()
+
+    # Multi-Index format:
+    portfolio = pd.DataFrame.from_records(((d, a, v) for d, h in portfolio.items() for a, v in h.items()),
+                                          columns=["date", "asset", "holding"]).set_index(["date", "asset"])
+
+    # Daily frequency:
+    period = pd.date_range(statement.date.iloc[0], pd.Timestamp.today(), freq="D", name="date")
+    portfolio = portfolio.unstack(level=1).reindex(period).ffill().stack(future_stack=True)
+
+    return portfolio[portfolio.holding != 0.0].dropna()
