@@ -14,3 +14,6 @@ LINE_TYPES = OrderedDict({
     'cost': {'degiro transactiekosten', 'degiro aansluitingskosten', 'externe kosten', 'stamp duty'},
     'other': {}
 })
+
+# Something:
+PANDAS_FREQ_MAPPING = dict(D='D', M='MS', Q='QS', A='YS')
