@@ -4,7 +4,6 @@ import requests
 # External packages:
 import pandas as pd
 import yfinance as yf
-from IPython.core.debugger import decorate_fn_with_doc
 
 # Constants:
 from ..utils.constants import EXR_ENTRY_POINT
@@ -38,7 +37,7 @@ def get_closing_prices(tickers: str | list[str], start: str | pd.Timestamp, end:
 
     # Multi-index format:
     if prices.empty:
-        raise ValueError("API Error: Failed to retrieve price data.")
+        raise LookupError("API Error: Failed to retrieve price data.")
     else:
         prices  = prices.rename_axis(index='date', columns='ticker').stack().to_frame('close')
 
@@ -61,15 +60,17 @@ def _get_ecb_rate(quote: str, start: str, end: str, freq: str, var: str) -> pd.D
 
     freq: str, default="D"
         Frequency at which the exchange rate is measured:
-        - ``"D"`` : Daily
-        - ``"M"`` : Monthly
-        - ``"Q"`` : Quarterly
-        - ``"A"`` : Annual
+
+            - ``"D"`` : Daily
+            - ``"M"`` : Monthly
+            - ``"Q"`` : Quarterly
+            - ``"A"`` : Annual
 
     var: str, default="A"
         The time-series variation of the measurement:
-        - ``"A"`` : Average
-        - ``"E"`` : End-of-Period (not applicable to daily)
+
+            - ``"A"`` : Average
+            - ``"E"`` : End-of-Period (not applicable to daily)
 
     Returns
     -------
