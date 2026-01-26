@@ -259,3 +259,16 @@ class Account:
         # Merge prices onto portfolio:
         merged = pd.concat(frames).sort_index()
         self.portfolio = self.portfolio.join(merged.reindex(self.portfolio.index), how="left")
+
+    def _compute_valuation(self):
+        """
+        Adds valuation of assets to the ``portfolio`` attribute as column ``"value"``.
+
+        Notes
+        -----
+        1. ``value`` = ``holding`` * ``close``
+        2. Values are expressed in EUR:
+           - Currency holdings are converted via EUR exchange rates.
+           - Asset prices are converted implicitly via FX-adjusted ``close``.
+        """
+        self.portfolio["value"] = self.portfolio.holding * self.portfolio.close
