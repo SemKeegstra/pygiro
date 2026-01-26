@@ -6,6 +6,7 @@ import pandas as pd
 
 # Internal:
 from ..api.assets import get_listings
+from ..api.prices import get_closing_prices, get_exchange_rate
 
 # Constants:
 from ..utils.mappings import LINE_TYPES
@@ -64,7 +65,8 @@ class Account:
         self.tickers: dict[str, str] = self._complete_ticker_mapping(mapping=mapping)
 
         # Investment portfolio:
-        self.portfolio = self._built_portfolio()
+        self.portfolio: pd.DataFrame = self._built_portfolio()
+        self._add_prices()
 
     @staticmethod
     def _read_file(path: str) -> pd.DataFrame:
@@ -226,3 +228,34 @@ class Account:
         portfolio = portfolio.unstack(level=1).reindex(period).ffill().stack(future_stack=True)
 
         return portfolio[portfolio.holding != 0.0].dropna()
+
+    def _add_prices(self):
+        """
+        Adds daily prices to the ``portfolio`` attribute as column ``"close"``.
+
+        Notes
+        -----
+        1. For investable assets, closing prices are retrieved via ``api.assets.get_closing_prices()``.
+        2. For currencies, exchange rates are retrieved via ``api.assets.get_exchange_rate()``.
+        """
+        # Initialize:
+        frames: list[pd.DataFrame] = []
+
+        # Period:
+        dates = self.portfolio.index.get_level_values("date")
+        start, end = str(dates[0].date()), str(dates[-1].date())
+
+        # Retrieve closing prices for financial assets:
+        close = get_closing_prices(tickers=list(self.tickers), start=start, end=end, ffill=True).reset_index()
+        close = close.assign(asset=lambda df: df.ticker.map(self.tickers)).drop(columns=["ticker"])
+        frames.append(close.set_index(["date", "asset"]).sort_index())
+
+        # Retrieve FX rates for currencies:
+        for curr in sorted(self.currencies):
+            fx = get_exchange_rate(base=curr, quote="EUR", start=start, end=end)
+            fx = fx.rename(columns={fx.columns[0]: "close"}).assign(asset=curr).reset_index(names="date")
+            frames.append(fx.set_index(["date", "asset"]).sort_index())
+
+        # Merge prices onto portfolio:
+        merged = pd.concat(frames).sort_index()
+        self.portfolio = self.portfolio.join(merged.reindex(self.portfolio.index), how="left")

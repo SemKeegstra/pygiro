@@ -35,7 +35,7 @@ def get_listings(name: str) -> dict[str, dict[str, str]]:
     listings = dict()
 
     # Retrieve quoted listings:
-    for quote in yf.Search(name).quotes:
+    for quote in yf.Search(name).all["quotes"]:
         symbol = quote.get("symbol")
         if not symbol:
             continue
