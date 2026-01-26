@@ -9,9 +9,14 @@ import yfinance as yf
 from ..utils.constants import EXR_ENTRY_POINT
 from ..utils.mappings import PANDAS_FREQ_MAPPING as FREQUENCY
 
-def get_closing_prices(tickers: str | list[str], start: str | pd.Timestamp, end: str | pd.Timestamp) -> pd.DataFrame:
+def get_closing_prices(tickers: str | list[str], start: str | pd.Timestamp, end: str | pd.Timestamp,
+                       ffill: bool = False) -> pd.DataFrame:
     """
     Retrieves daily closing prices for one or more ``tickers`` using the yahoo finance API.
+
+    Notes
+    -----
+    1. The index is expanded to the full daily period, meaning calendar days instead of just trading days.
 
     Parameters
     ----------
@@ -24,6 +29,9 @@ def get_closing_prices(tickers: str | list[str], start: str | pd.Timestamp, end:
     end: str | pd.Timestamp
         The end date of the period.
 
+    ffill: bool, default=False
+        Whether to forward-fill missing observations after expanding to the full daily period.
+
     Returns
     -------
     pd.DataFrame
@@ -31,17 +39,19 @@ def get_closing_prices(tickers: str | list[str], start: str | pd.Timestamp, end:
     """
     # Initialize:
     tickers = [tickers] if isinstance(tickers, str) else tickers
+    period = pd.date_range(start=start, end=end, freq="D")
 
     # Retrieve closing prices:
     prices = yf.download(tickers=tickers, start=start, end=end, progress=False)["Close"]
-
-    # Multi-index format:
     if prices.empty:
         raise LookupError("API Error: Failed to retrieve price data.")
-    else:
-        prices  = prices.rename_axis(index='date', columns='ticker').stack().to_frame('close')
 
-    return prices
+    # Daily frequency:
+    prices = prices.reindex(period)
+    if ffill:
+        prices.ffill(inplace=True)
+
+    return prices.rename_axis(index='date', columns='ticker').stack().to_frame('close')
 
 def _get_ecb_rate(quote: str, start: str, end: str, freq: str, var: str) -> pd.DataFrame:
     """
