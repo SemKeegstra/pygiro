@@ -31,7 +31,7 @@ class Account:
         Set of currencies present in the account.
 
     tickers : dict[str, str]
-        The used mapping from ISIN to Yahoo ticker symbol.
+        The used mapping from Yahoo ticker symbol to ISIN.
     """
     def __init__(self, file: str | pd.DataFrame, mapping: dict[str, str] | None = None):
         """
@@ -44,7 +44,7 @@ class Account:
            - Ensure the start date covers the full investment period of interest.
         2. During initialization, the account statement is formatted, asset identifiers are extracted, and a daily
            end-of-day portfolio is constructed.
-        3. Missing ISIN-to-ticker mappings are resolved automatically where possible.
+        3. Missing ticker-to-ISIN mappings are resolved automatically where possible.
 
         Parameters
         -----------
@@ -52,7 +52,7 @@ class Account:
             Path to a DEGIRO account statement CSV file or a raw account statement ``DataFrame``.
 
         mapping: dict[str, str] | None
-            Optional user-specified mapping from ISIN to Yahoo ticker symbol.
+            Optional user-specified mapping from Yahoo ticker symbol to ISIN.
         """
         # Initialize:
         self.file: pd.DataFrame = self._read_file(path=file) if isinstance(file, str) else file
@@ -156,7 +156,7 @@ class Account:
 
     def _complete_ticker_mapping(self, mapping: dict[str, str] | None) -> dict[str, str]:
         """
-        Completes the user-specified ISIN-to-Ticker ``mapping`` for all assets present in the account statement.
+        Completes the user-specified ticker-to-ISIN ``mapping`` for all assets present in the account statement.
 
         Notes
         -----
@@ -167,24 +167,24 @@ class Account:
         Parameters
         ----------
         mapping: dict[str, str] | None
-            Optional ISIN-to-Ticker mapping.
+            Optional ticker-to-ISIN mapping.
 
         Returns
         -------
         dict[str,str]
-            Completed mapping from ISIN to Ticker symbol.
+            Completed mapping from Ticker symbol to ISIN.
         """
         # Initialize:
         mapping = dict() if mapping is None else mapping
 
         # Add missing tickers:
-        for isin in self.isins - set(mapping.keys()):
+        for isin in self.isins - set(mapping.values()):
             asset = self.statement[self.statement.ISIN == isin].iloc[0]
             currency = asset["currency"]
             for ticker in (tickers := get_listings(name=asset["name"])):
                 # Currency matching:
-                if tickers[ticker]["currency"] == currency:
-                    mapping[isin] = ticker
+                if (tickers[ticker]["currency"] == currency) and (ticker not in mapping):
+                    mapping[ticker] = isin
                     break
 
         return mapping
