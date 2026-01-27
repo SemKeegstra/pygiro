@@ -62,6 +62,9 @@ class Account:
         self.statement: pd.DataFrame = self._format_account_statement(file=self.file)
         self.isins: set[str] = set(self.statement.ISIN.dropna())
         self.currencies: set[str] = set(self.statement.currency.dropna())
+
+        # Mappings:
+        self.asset_currency: dict[str, str] = self._get_currency_mapping()
         self.tickers: dict[str, str] = self._complete_ticker_mapping(mapping=mapping)
 
         # Investment portfolio:
@@ -156,6 +159,23 @@ class Account:
         statement['price'] = statement.description.str.extract(r"@\s*([\d.,]+)", expand=False).str.replace(",",".").astype(float)
 
         return statement[statement.type != 'other']
+
+    def _get_currency_mapping(self) -> dict[str, str]:
+        """
+        Constructs a ISIN-to-Currency ``mapping`` for all investable assets present in the account statement.
+
+        Returns 
+        -------
+        dict[str, str]
+            Mapping from ISIN to currency symbol.
+        """
+        # Initialize:
+        asset_lines = self.statement[self.statement.ISIN.notna()]
+
+        # Construct mapping:
+        mapping = asset_lines.groupby("ISIN")["currency"].agg(lambda line: line.dropna().iloc[0]).to_dict()
+
+        return mapping
 
     def _complete_ticker_mapping(self, mapping: dict[str, str] | None) -> dict[str, str]:
         """
