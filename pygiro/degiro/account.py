@@ -62,11 +62,15 @@ class Account:
         self.statement: pd.DataFrame = self._format_account_statement(file=self.file)
         self.isins: set[str] = set(self.statement.ISIN.dropna())
         self.currencies: set[str] = set(self.statement.currency.dropna())
+
+        # Mappings:
+        self.asset_currency: dict[str, str] = self._get_currency_mapping()
         self.tickers: dict[str, str] = self._complete_ticker_mapping(mapping=mapping)
 
         # Investment portfolio:
         self.portfolio: pd.DataFrame = self._built_portfolio()
         self._add_prices()
+        self._compute_valuation()
 
     @staticmethod
     def _read_file(path: str) -> pd.DataFrame:
@@ -156,6 +160,23 @@ class Account:
 
         return statement[statement.type != 'other']
 
+    def _get_currency_mapping(self) -> dict[str, str]:
+        """
+        Constructs a ISIN-to-Currency ``mapping`` for all investable assets present in the account statement.
+
+        Returns
+        -------
+        dict[str, str]
+            Mapping from ISIN to currency symbol.
+        """
+        # Initialize:
+        asset_lines = self.statement[self.statement.ISIN.notna()]
+
+        # Construct mapping:
+        mapping = asset_lines.groupby("ISIN")["currency"].agg(lambda line: line.dropna().iloc[0]).to_dict()
+
+        return mapping
+
     def _complete_ticker_mapping(self, mapping: dict[str, str] | None) -> dict[str, str]:
         """
         Completes the user-specified ticker-to-ISIN ``mapping`` for all assets present in the account statement.
@@ -199,6 +220,7 @@ class Account:
         -----
         1. The portfolio is defined as a multi-index DataFrame (date, asset).
         2. End date is set to yesterday to support the retrieval of closing prices.
+        3. Tracks asset holdings and total invested value.
 
         Returns
         -------
@@ -206,22 +228,30 @@ class Account:
             Daily portfolio.
         """
         # Initialize:
-        portfolio = dict()
-        holdings = defaultdict(float)
+        holdings, current_holdings = dict(), defaultdict(float)
+        investments, current_investment = dict(), defaultdict(float)
 
         # Construct portfolio:
         for date, frame in self.statement.groupby("date"):
             for _, line in frame.iterrows():
                 # Adjust balance
-                holdings[line.currency] += line.amount
+                current_holdings[line.currency] += line.amount
+                current_investment[line.currency] += line.amount
                 # Adjust shares (if needed):
                 if line.type in {"buy", "sell"}:
-                    holdings[line.ISIN] += line.shares
-            portfolio[date] = holdings.copy()
+                    current_holdings[line.ISIN] += line.shares
+                    current_investment[line.ISIN] -= line.amount
+            holdings[date] = current_holdings.copy()
+            investments[date] = current_investment.copy()
 
         # Multi-Index format:
-        portfolio = pd.DataFrame.from_records(((d, a, v) for d, h in portfolio.items() for a, v in h.items()),
-                                              columns=["date", "asset", "holding"]).set_index(["date", "asset"])
+        holdings = pd.DataFrame.from_records(((d, a, v) for d, h in holdings.items() for a, v in h.items()),
+                                             columns=["date", "asset", "holding"]).set_index(["date", "asset"])
+        investments = pd.DataFrame.from_records(((d, a, v) for d, h in investments.items() for a, v in h.items()),
+                                                columns=["date", "asset", "investment"]).set_index(["date", "asset"])
+
+        # Merge data:
+        portfolio = holdings.join(investments, how="outer")
 
         # Daily frequency:
         period = pd.date_range(self.statement.date.iloc[0], pd.Timestamp.today() - pd.Timedelta(days=1), freq="D", name="date")
@@ -235,27 +265,45 @@ class Account:
 
         Notes
         -----
-        1. For investable assets, closing prices are retrieved via ``api.assets.get_closing_prices()``.
-        2. For currencies, exchange rates are retrieved via ``api.assets.get_exchange_rate()``.
+        1. For currencies, exchange rates are retrieved via ``api.assets.get_exchange_rate()``.
+        2. For investable assets, closing prices are retrieved via ``api.assets.get_closing_prices()``.
+           - All closing prices are expressed in EUR (after FX-adjustment).
         """
         # Initialize:
-        frames: list[pd.DataFrame] = []
-
-        # Period:
         dates = self.portfolio.index.get_level_values("date")
         start, end = str(dates[0].date()), str(dates[-1].date())
 
-        # Retrieve closing prices for financial assets:
-        close = get_closing_prices(tickers=list(self.tickers), start=start, end=end, ffill=True).reset_index()
-        close = close.assign(asset=lambda df: df.ticker.map(self.tickers)).drop(columns=["ticker"])
-        frames.append(close.set_index(["date", "asset"]).sort_index())
-
-        # Retrieve FX rates for currencies:
+        # Retrieve FX rates per currency:
+        rates = []
         for curr in sorted(self.currencies):
             fx = get_exchange_rate(base=curr, quote="EUR", start=start, end=end)
-            fx = fx.rename(columns={fx.columns[0]: "close"}).assign(asset=curr).reset_index(names="date")
-            frames.append(fx.set_index(["date", "asset"]).sort_index())
+            fx = fx.rename(columns=lambda c: "close").assign(asset=curr, fx=curr).reset_index(names="date")
+            rates.append(fx.set_index(["date", "asset"]).sort_index())
+        rates = pd.concat(rates).sort_index()
+
+        # Retrieve closing prices for financial assets:
+        price = get_closing_prices(tickers=list(self.tickers), start=start, end=end, ffill=True).reset_index()
+        price = price.assign(asset=lambda df: df.ticker.map(self.tickers)).drop(columns=["ticker"])
+        price = price.set_index(["date", "asset"]).sort_index()
+
+        # FX adjusted close:
+        curr = price.index.get_level_values("asset").map(self.asset_currency)
+        idx = pd.MultiIndex.from_arrays([price.index.get_level_values("date"), curr], names=["date", "asset"])
+        price.close *= rates.close.reindex(idx).to_numpy()
 
         # Merge prices onto portfolio:
-        merged = pd.concat(frames).sort_index()
+        merged = pd.concat([price, rates.close]).sort_index()
         self.portfolio = self.portfolio.join(merged.reindex(self.portfolio.index), how="left")
+
+    def _compute_valuation(self):
+        """
+        Adds valuation of assets to the ``portfolio`` attribute as column ``"value"``.
+
+        Notes
+        -----
+        1. ``value`` = ``holding`` * ``close``
+        2. Values are expressed in EUR:
+           - Currency holdings are converted via EUR exchange rates.
+           - Asset prices are converted implicitly via FX-adjusted ``close``.
+        """
+        self.portfolio["value"] = self.portfolio.holding * self.portfolio.close
