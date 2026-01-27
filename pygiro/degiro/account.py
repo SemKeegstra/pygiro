@@ -20,10 +20,10 @@ class Account:
     Attributes
     ----------
     statement : pd.DataFrame
-        Formatted DEGIRO account statement indexed by transaction time.
+        Formatted DEGIRO account statement, indexed by transaction time.
 
     portfolio : pd.DataFrame
-        Daily end-of-day portfolio holdings.
+        Daily end-of-day portfolio holdings, indexed by (date, asset).
 
     isins : set[str]
         Set of unique ISINs present in the account.
@@ -31,8 +31,14 @@ class Account:
     currencies : set[str]
         Set of currencies present in the account.
 
+    asset_currency: dict[str, str]
+        ISIN to currency symbol mapping.
+
     tickers : dict[str, str]
-        The used mapping from Yahoo ticker symbol to ISIN.
+        Yahoo ticker symbol to ISIN mapping.
+
+    returns : pd.DataFrame | None
+        Daily time-weighted return (TWR) series of the account, indexed by date.
     """
     def __init__(self, file: str | pd.DataFrame, mapping: dict[str, str] | None = None):
         """
@@ -71,6 +77,9 @@ class Account:
         self.portfolio: pd.DataFrame = self._built_portfolio()
         self._add_prices()
         self._compute_valuation()
+
+        # Investment returns:
+        self.returns: pd.DataFrame | None = None
 
     @staticmethod
     def _read_file(path: str) -> pd.DataFrame:
@@ -307,3 +316,41 @@ class Account:
            - Asset prices are converted implicitly via FX-adjusted ``close``.
         """
         self.portfolio["value"] = self.portfolio.holding * self.portfolio.close
+
+    def compute_returns(self):
+        """
+        Computes daily Time-Weighted Returns (TWR) for the full brokerage account and stores them in the ``returns``
+        attribute.
+
+        Notes
+        -----
+        1. The daily TWR is computed as the sub-period return that neutralizes external cash-flows:
+
+            →  r_t = (V_t - (V_{t-1} + CF_t)) / (V_{t-1} + CF_t)
+
+            where ``V_t`` is end-of-day total portfolio value and ``CF_t`` is the net external cash-flow.
+        """
+        # Initialize:
+        value = self.portfolio["value"].groupby(level="date").sum().sort_index()
+        flows = self.statement[self.statement["type"].isin({"deposit", "withdrawal"})].copy()
+
+        # Retrieve daily cashflows:
+        if flows.empty:
+            cashflow = value.mul(0.0).rename("cashflow")
+        else:
+            # Retrieve FX rates of interest:
+            fx = self.portfolio.loc[(slice(None), list(self.currencies)), "close"].sort_index()
+            fx = fx.rename_axis(index={"asset": "currency"}).reset_index()
+
+            # Compute FX-adjusted cashflow:
+            flows = flows.merge(fx, on=["date", "currency"], how="left")
+            flows["amount"] = flows["amount"] * flows["close"]
+            cashflow = flows.groupby("date")["amount"].sum().reindex(value.index).fillna(0.0)
+
+        # Compute Time-Weighted Returns (TWR):
+        base = value.shift(1) + cashflow
+        twr = (value - base) / base
+        twr.name = "TWR"
+
+        # Merge returns:
+        self.returns = twr.fillna(0.0).to_frame()
