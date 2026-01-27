@@ -164,7 +164,7 @@ class Account:
         """
         Constructs a ISIN-to-Currency ``mapping`` for all investable assets present in the account statement.
 
-        Returns 
+        Returns
         -------
         dict[str, str]
             Mapping from ISIN to currency symbol.
@@ -265,29 +265,34 @@ class Account:
 
         Notes
         -----
-        1. For investable assets, closing prices are retrieved via ``api.assets.get_closing_prices()``.
-        2. For currencies, exchange rates are retrieved via ``api.assets.get_exchange_rate()``.
+        1. For currencies, exchange rates are retrieved via ``api.assets.get_exchange_rate()``.
+        2. For investable assets, closing prices are retrieved via ``api.assets.get_closing_prices()``.
+           - All closing prices are expressed in EUR (after FX-adjustment).
         """
         # Initialize:
-        frames: list[pd.DataFrame] = []
-
-        # Period:
         dates = self.portfolio.index.get_level_values("date")
         start, end = str(dates[0].date()), str(dates[-1].date())
 
-        # Retrieve closing prices for financial assets:
-        close = get_closing_prices(tickers=list(self.tickers), start=start, end=end, ffill=True).reset_index()
-        close = close.assign(asset=lambda df: df.ticker.map(self.tickers)).drop(columns=["ticker"])
-        frames.append(close.set_index(["date", "asset"]).sort_index())
-
-        # Retrieve FX rates for currencies:
+        # Retrieve FX rates per currency:
+        rates = []
         for curr in sorted(self.currencies):
             fx = get_exchange_rate(base=curr, quote="EUR", start=start, end=end)
-            fx = fx.rename(columns={fx.columns[0]: "close"}).assign(asset=curr).reset_index(names="date")
-            frames.append(fx.set_index(["date", "asset"]).sort_index())
+            fx = fx.rename(columns=lambda c: "close").assign(asset=curr, fx=curr).reset_index(names="date")
+            rates.append(fx.set_index(["date", "asset"]).sort_index())
+        rates = pd.concat(rates).sort_index()
+
+        # Retrieve closing prices for financial assets:
+        price = get_closing_prices(tickers=list(self.tickers), start=start, end=end, ffill=True).reset_index()
+        price = price.assign(asset=lambda df: df.ticker.map(self.tickers)).drop(columns=["ticker"])
+        price = price.set_index(["date", "asset"]).sort_index()
+
+        # FX adjusted close:
+        curr = price.index.get_level_values("asset").map(self.asset_currency)
+        idx = pd.MultiIndex.from_arrays([price.index.get_level_values("date"), curr], names=["date", "asset"])
+        price.close *= rates.close.reindex(idx).to_numpy()
 
         # Merge prices onto portfolio:
-        merged = pd.concat(frames).sort_index()
+        merged = pd.concat([price, rates.close]).sort_index()
         self.portfolio = self.portfolio.join(merged.reindex(self.portfolio.index), how="left")
 
     def _compute_valuation(self):
