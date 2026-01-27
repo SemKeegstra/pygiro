@@ -67,6 +67,7 @@ class Account:
         # Investment portfolio:
         self.portfolio: pd.DataFrame = self._built_portfolio()
         self._add_prices()
+        self._compute_valuation()
 
     @staticmethod
     def _read_file(path: str) -> pd.DataFrame:
@@ -199,6 +200,7 @@ class Account:
         -----
         1. The portfolio is defined as a multi-index DataFrame (date, asset).
         2. End date is set to yesterday to support the retrieval of closing prices.
+        3. Tracks asset holdings and total invested value.
 
         Returns
         -------
@@ -206,22 +208,30 @@ class Account:
             Daily portfolio.
         """
         # Initialize:
-        portfolio = dict()
-        holdings = defaultdict(float)
+        holdings, current_holdings = dict(), defaultdict(float)
+        investments, current_investment = dict(), defaultdict(float)
 
         # Construct portfolio:
         for date, frame in self.statement.groupby("date"):
             for _, line in frame.iterrows():
                 # Adjust balance
-                holdings[line.currency] += line.amount
+                current_holdings[line.currency] += line.amount
+                current_investment[line.currency] += line.amount
                 # Adjust shares (if needed):
                 if line.type in {"buy", "sell"}:
-                    holdings[line.ISIN] += line.shares
-            portfolio[date] = holdings.copy()
+                    current_holdings[line.ISIN] += line.shares
+                    current_investment[line.ISIN] -= line.amount
+            holdings[date] = current_holdings.copy()
+            investments[date] = current_investment.copy()
 
         # Multi-Index format:
-        portfolio = pd.DataFrame.from_records(((d, a, v) for d, h in portfolio.items() for a, v in h.items()),
-                                              columns=["date", "asset", "holding"]).set_index(["date", "asset"])
+        holdings = pd.DataFrame.from_records(((d, a, v) for d, h in holdings.items() for a, v in h.items()),
+                                             columns=["date", "asset", "holding"]).set_index(["date", "asset"])
+        investments = pd.DataFrame.from_records(((d, a, v) for d, h in investments.items() for a, v in h.items()),
+                                                columns=["date", "asset", "investment"]).set_index(["date", "asset"])
+
+        # Merge data:
+        portfolio = holdings.join(investments, how="outer")
 
         # Daily frequency:
         period = pd.date_range(self.statement.date.iloc[0], pd.Timestamp.today() - pd.Timedelta(days=1), freq="D", name="date")
