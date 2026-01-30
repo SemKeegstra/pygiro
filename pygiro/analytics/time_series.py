@@ -2,6 +2,26 @@
 import numpy as np
 import pandas as pd
 
+def total_return(series: pd.Series) -> float:
+    """
+    Computes the total geometric return of a time-series.
+
+    Notes
+    -----
+    1. Assumes that the time-series is denoted in decimals.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Time-series of interest (e.g. period returns).
+
+    Returns
+    -------
+    float
+        Total Geometric Return
+    """
+    return (1.0 + series).prod() - 1.0
+
 
 def mean(series: pd.Series, ann_freq: int = 1) -> float:
     """
