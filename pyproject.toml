@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pygiro"
+version = "0.1.0"
+description = "Python-based portfolio analytics application for DEGIRO."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "yfinance",
+]
+
+[project.optional-dependencies]
+app = [
+    "streamlit",
+    "plotly",
+]
+dev = [
+    "jupyterlab",
+    "ipykernel",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pygiro*"]

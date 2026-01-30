@@ -1,0 +1,2 @@
+/* Hide Streamlit sidebar */
+[data-testid="stSidebar"] { display: none;}
