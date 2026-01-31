@@ -16,8 +16,8 @@ limited: retrievable data is unstructured and there are no charts or even time-w
 
 This library fills the gap by providing:
 
-- **`pygiro`**: a research-ready backend that prepares, enriches, and analyzes account data for custom portfolio analysis.
-- **`dashboard`**: an optional interactive UI for drag-and-drop performance insights without coding.
+- **`pygiro`**: research-ready backend that prepares and enriches account data for custom portfolio analysis.
+- **`dashboard`**: optional interactive UI for drag-and-drop performance insights without coding.
 
 
 ## ⚙️ Installation
@@ -93,11 +93,11 @@ acc.compute_returns()
 During initialization, the `Account` performs the following steps:
 
 - **Ticker Mapping**   
-  Resolves ISINs to Yahoo tickers with an automatic lookup for missing entries in the (optional) user-specified `mapping`.
+  Resolves ISINs to tickers with an automatic lookup for missing entries in the user-specified `mapping`.
 - **Account statement formatting**  
   Cleans and standardizes the raw DEGIRO account statement and stores the result in the `statement` attribute.
 - **Price and FX retrieval**  
-Retrieves historical asset prices and foreign exchange rates and applies FX conversion to a common currency (EUR).
+  Retrieves historical prices and foreign exchange rates and applies FX conversion to a common currency (EUR).
 - **Portfolio construction**  
   Constructs a daily end-of-day portfolio view and stores it in the `portfolio` attribute.
 
@@ -143,8 +143,7 @@ However, most users will be more interested in the reconstructed end-of-day `por
 ```
 
 This portfolio provides a clean, analysis-ready view of your holdings, invested capital, FX-adjusted prices and 
-valuations expressed consistently in EUR. Based on this `portfolio` the class is able to construct daily time-weighted 
-`returns`:
+valuations expressed consistently in EUR. Based on this the class is able to construct daily time-weighted `returns`:
 
 ```python
 >>> acc.returns
