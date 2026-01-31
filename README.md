@@ -182,6 +182,14 @@ All analytics and calculations are handled by the underlying backend, you only h
 ```python
 >>> streamlit run dashboard/app.py
 ```
+**Ticker selection**
+
+![Ticker selection](dashboard/assets/png/ticker_selection.png)
+
+**Performance overview**
+
+![Performance overview](dashboard/assets/png/performance_overview.png)
+
 
 > **Note**  
 > The dashboard is currently in an initial version. It will be extended over time with additional metrics,
