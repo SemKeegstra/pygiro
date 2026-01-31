@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pygiro"
 version = "0.1.0"
-description = "Python-based portfolio analytics application for DEGIRO."
+description = "A Python toolkit for your DEGIRO brokerage account."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
@@ -13,6 +13,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "numpy",
     "pandas",
+    "requests",
     "matplotlib",
     "yfinance",
 ]
