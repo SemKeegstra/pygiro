@@ -6,10 +6,9 @@
 A Python toolkit for your DEGIRO brokerage account.
 </h3>
 
+---
 
 ## 🧠 About
-
----
 
 **pyGIRO** serves as an analytical toolkit for your brokerage account and comes with a pre-built interactive 
 performance dashboard. While **DEGIRO** is a cost-efficient broker, the analytical capabilities of their platform are
@@ -22,8 +21,6 @@ This library fills the gap by providing:
 
 
 ## ⚙️ Installation
-
----
 
 ### 1. Clone the repository
 
@@ -63,9 +60,9 @@ All dependencies are specified in `pyproject.toml` and mirrored in `requirements
 
 ## 🚀 Usage
 
----
-
 ### 📦 pygiro
+
+---
 
 
 The `pygiro` module is intended as a starting point for custom portfolio analysis. It takes care of the initial heavy 
@@ -170,6 +167,8 @@ in order to match the date index of `portfolio`.
 
 ### 🖥️ dashboard
 
+---
+
 The `dashboard` module provides an interactive, no-code interface built on top of the `pygiro` core library.
 It is intended for users who want to explore portfolio performance visually without writing any code.
 
@@ -192,8 +191,6 @@ All analytics and calculations are handled by the underlying backend, you only h
 
 
 ## ⚠️ Disclaimer
-
----
 
 The **pyGIRO** library is an independent, open-source project and is **not affiliated with DEGIRO**.
 It is provided to enhance user experience for educational and personal use only and does not constitute financial advice.
