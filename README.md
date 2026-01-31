@@ -7,6 +7,10 @@ A Python toolkit for your DEGIRO brokerage account.
 </h3>
 
 ---
+![Release](https://img.shields.io/github/v/release/SemKeegstra/pygiro)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/github/license/SemKeegstra/pygiro)
+![Status](https://img.shields.io/badge/status-active-brightgreen)
 
 ## 🧠 About
 
