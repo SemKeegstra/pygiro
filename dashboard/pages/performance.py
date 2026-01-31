@@ -1,14 +1,13 @@
 # External:
-import numpy as np
 import pandas as pd
 import streamlit as st
 
 # Internal:
 import components.tables as tbl
 import components.figures as plot
-from components.tables import return_metrics, render_grid
-from components.style import load_css
 from components.lib import get_time_period
+from components.style import load_css, set_logo_title
+from components.tables import return_metrics, render_grid
 
 # Constants:
 from components.constants import TIME_PERIODS, FIGURES
@@ -34,7 +33,7 @@ if "active_manual_range" not in st.session_state:
 # ======================
 
 st.set_page_config(page_title="PyGiro - Performance", layout="wide")
-st.title("Performance Overview")
+set_logo_title("Performance Overview")
 
 # ======================
 # Settings

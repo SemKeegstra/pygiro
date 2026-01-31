@@ -1,3 +1,6 @@
+# Standard:
+from pathlib import Path
+
 # External:
 import pandas as pd
 import streamlit as st
@@ -11,15 +14,15 @@ from pygiro.api.assets import get_listings
 # ======================
 # Initialization
 # ======================
-
 load_css()
+app_dir = Path(__file__).resolve().parents[1]
 
 # ======================
 # Page Title
 # ======================
 
 st.set_page_config(page_title="PyGiro - Account Loader", layout="wide")
-st.title("Pygiro Account Loader")
+st.image(app_dir / "dashboard" / "assets" / "png" / "logo_alternative.png", width=250)
 st.write("Please upload your DEGIRO account statement CSV here:")
 
 # ======================
@@ -66,5 +69,6 @@ if file is not None:
             account.compute_returns()
 
             # Next page:
+            st.session_state["dir"] = app_dir
             st.session_state["account"] = account
             st.switch_page("pages/performance.py")
